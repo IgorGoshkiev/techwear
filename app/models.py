@@ -1,12 +1,37 @@
-from sqlalchemy import Column, Integer, String, Float, Text
-from database import Base
+from sqlalchemy import Column, String, Float, Text
+from sqlalchemy.orm import Mapped, mapped_column
+from typing import Optional
+
+from database import Base, str_null_true
+
 
 class Product(Base):
     __tablename__ = "products"
 
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(100), nullable=False, index=True)
-    description = Column(Text)
-    price = Column(Float, nullable=False)
-    category = Column(String(50), nullable=False, index=True)
-    sizes = Column(String(100))  # храним как строку "S,M,L,XL"
+    name: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+        index=True,
+        comment="Название товара"
+    )
+    description: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Описание товара"
+    )
+    price: Mapped[float] = mapped_column(
+        Float,
+        nullable=False,
+        comment="Цена товара"
+    )
+    category: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        index=True,
+        comment="Категория товара"
+    )
+    sizes: Mapped[Optional[str]] = mapped_column(
+        String(100),
+        nullable=True,
+        comment="Доступные размеры (через запятую)"
+    )

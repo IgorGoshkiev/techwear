@@ -1,100 +1,177 @@
-from fastapi import FastAPI, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
-from typing import List, Optional
+import logging
+from contextlib import asynccontextmanager
+from pathlib import Path
 
-import models
-import schemas
-from database import engine, get_db
+import uvicorn
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from sqlalchemy import select, text
 
-# Создаем таблицы
-models.Base.metadata.create_all(bind=engine)
+from database import Base, async_session, engine
+from models import Product
+from routers import products
+
+# Настройка логирования
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Управление событиями жизненного цикла приложения"""
+    # Startup логика
+    logger.info("Starting database initialization...")
+
+    # Создаем таблицы
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+    # Проверяем подключение к базе данных
+    async with engine.connect() as test_conn:
+        await test_conn.execute(text("SELECT 1"))
+        logger.info("Подключение к базе данных успешно")
+
+    # Создаем тестовые товары
+    async with async_session() as session:
+        try:
+            # Проверяем, есть ли уже товары
+            stmt = select(Product)
+            result = await session.execute(stmt)
+            existing_products = result.scalars().all()
+
+            if existing_products:
+                logger.info(f"В базе уже есть {len(existing_products)} товаров")
+            else:
+                # Создаем тестовые товары
+                test_products = [
+                    Product(
+                        name="Waterproof Tech Jacket",
+                        description="Техническая куртка с мембраной GORE-TEX",
+                        price=299.99,
+                        category="jackets",
+                        sizes="S,M,L,XL"
+                    ),
+                    Product(
+                        name="Cargo Tech Pants",
+                        description="Функциональные штаны с карго-карманами",
+                        price=199.99,
+                        category="pants",
+                        sizes="M,L,XL"
+                    ),
+                    Product(
+                        name="Urban Backpack",
+                        description="Городской рюкзак с водонепроницаемым отделением",
+                        price=149.99,
+                        category="accessories",
+                        sizes="One Size"
+                    )
+                ]
+
+                session.add_all(test_products)
+                await session.commit()
+
+                for product in test_products:
+                    await session.refresh(product)
+
+                logger.info(f"Создано {len(test_products)} тестовых товаров")
+
+        except Exception as e:
+            logger.error(f"Ошибка при создании тестовых данных: {str(e)}")
+            # Не прерываем запуск при ошибке тестовых данных
+
+    yield
+
+    # Shutdown логика
+    await engine.dispose()
+    logger.info("Приложение завершает работу")
+
 
 app = FastAPI(
     title="VNE Techwear Store API",
     description="Backend для интернет-магазина techwear бренда VNE",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
+# CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-# 1. Получение списка товаров
-@app.get("/products", response_model=List[schemas.ProductBase])
-def get_products(
-        skip: int = 0,
-        limit: int = 100,
-        category: Optional[str] = Query(None, description="Фильтр по категории"),
-        name: Optional[str] = Query(None, description="Поиск по названию"),
-        db: Session = Depends(get_db)
-):
-    """
-    Получить список товаров с возможностью фильтрации по категории и поиска по названию
-    """
-    query = db.query(models.Product)
-
-    # Фильтрация по категории
-    if category:
-        query = query.filter(models.Product.category == category)
-
-    # Поиск по названию (регистронезависимый)
-    if name:
-        query = query.filter(models.Product.name.ilike(f"%{name}%"))
-
-    products = query.offset(skip).limit(limit).all()
-    return products
+# Подключение роутеров
+app.include_router(products.router, prefix="/api/v1", tags=["Products"])
 
 
-# 2. Получение одного товара
-@app.get("/products/{product_id}", response_model=schemas.Product)
-def get_product(product_id: int, db: Session = Depends(get_db)):
-    """
-    Получить полную информацию о товаре по ID
-    """
-    product = db.query(models.Product).filter(models.Product.id == product_id).first()
-    if product is None:
-        raise HTTPException(status_code=404, detail="Product not found")
-    return product
-
-
-# 3. Добавление нового товара
-@app.post("/products", response_model=schemas.Product)
-def create_product(product: schemas.ProductCreate, db: Session = Depends(get_db)):
-    """
-    Добавить новый товар
-    """
-    # валидация
-    if not product.name or not product.price:
-        raise HTTPException(status_code=400, detail="Name and price are required")
-
-    if product.price <= 0:
-        raise HTTPException(status_code=400, detail="Price must be positive")
-
-    db_product = models.Product(**product.model_dump())
-    db.add(db_product)
-    db.commit()
-    db.refresh(db_product)
-    return db_product
-
-
-# 4. Удаление товара
-@app.delete("/products/{product_id}")
-def delete_product(product_id: int, db: Session = Depends(get_db)):
-    """
-    Удалить товар по ID
-    """
-    product = db.query(models.Product).filter(models.Product.id == product_id).first()
-    if product is None:
-        raise HTTPException(status_code=404, detail="Product not found")
-
-    db.delete(product)
-    db.commit()
-    return {"message": "Product deleted successfully"}
+# Health check endpoint
+@app.get("/health")
+async def health_check():
+    """Проверка статуса приложения"""
+    return {
+        "status": "healthy",
+        "service": "VNE Techwear Store API",
+        "version": "1.0.0"
+    }
 
 
 @app.get("/")
-def root():
-    return {"message": "VNE Techwear Store API"}
+async def root():
+    return {
+        "message": "VNE Techwear Store API",
+        "docs": "/docs",
+        "health": "/health"
+    }
+
+
+# Глобальный обработчик ошибок
+@app.exception_handler(HTTPException)
+async def custom_http_exception_handler(_request: Request, exc: HTTPException):
+    error_detail = exc.detail
+
+    if isinstance(error_detail, dict):
+        error_content = error_detail
+        logger.error(
+            f"HTTPException: status_code={exc.status_code}, "
+            f"error_type={exc.__class__.__name__}, "
+            f"error_details={error_content}"
+        )
+    else:
+        error_content = {
+            "result": False,
+            "error_type": exc.__class__.__name__,
+            "error_message": str(error_detail),
+        }
+        logger.error(
+            f"HTTPException: status_code={exc.status_code}, "
+            f"error_type={exc.__class__.__name__}, "
+            f"error_message={str(error_detail)}"
+        )
+
+    return JSONResponse(status_code=exc.status_code, content=error_content)
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(_request: Request, exc: Exception):
+    logger.error(f"Unhandled exception: {str(exc)}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={
+            "result": False,
+            "error_type": "InternalServerError",
+            "error_message": "Internal server error"
+        }
+    )
 
 
 if __name__ == "__main__":
-    import uvicorn
-
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=True,
+        log_level="info"
+    )
