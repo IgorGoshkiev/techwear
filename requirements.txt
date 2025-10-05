@@ -6,3 +6,9 @@ python-dotenv==1.1.1
 pydantic==2.11.7
 pydantic_settings==2.11.0
 alembic==1.16.5
+# Test dependencies
+pytest
+pytest-asyncio
+httpx
+requests
+pytest-cov

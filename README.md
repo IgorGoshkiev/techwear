@@ -128,4 +128,11 @@
 
 ### Тестирование
 
-    pytest tests/
+#### Запуск всех тестов
+    pytest tests/ -v
+
+#### Запуск теотов с покрытием
+    pytest tests/ -v --cov=app
+
+#### Запуск конкретного тестового файла
+    pytest tests/test_products.py -v
