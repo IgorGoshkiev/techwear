@@ -4,8 +4,8 @@ from sqlalchemy.future import select
 from typing import List, Optional
 
 from ..database import get_db
-from ..models import Product
-from ..schemas import ProductBase, Product, ProductCreate
+from ..models import Product as ProductModel
+from ..schemas import ProductBase, ProductResponse, ProductCreate
 
 router = APIRouter()
 
@@ -21,25 +21,25 @@ async def get_products(
     """
     Получить список товаров с возможностью фильтрации по категории и поиска по названию
     """
-    query = select(Product)
+    query = select(ProductModel)
 
     if category:
-        query = query.where(Product.category == category)
+        query = query.where(ProductModel.category == category)
 
     if name:
-        query = query.where(Product.name.ilike(f"%{name}%"))
+        query = query.where(ProductModel.name.ilike(f"%{name}%"))
 
     result = await db.execute(query.offset(skip).limit(limit))
     products = result.scalars().all()
     return products
 
 
-@router.get("/products/{product_id}", response_model=Product)
+@router.get("/products/{product_id}", response_model=ProductResponse)
 async def get_product(product_id: int, db: AsyncSession = Depends(get_db)):
     """
     Получить полную информацию о товаре по ID
     """
-    query = select(Product).where(Product.id == product_id)
+    query = select(ProductModel).where(ProductModel.id == product_id)
     result = await db.execute(query)
     product = result.scalar_one_or_none()
 
@@ -48,13 +48,13 @@ async def get_product(product_id: int, db: AsyncSession = Depends(get_db)):
     return product
 
 
-@router.post("/products", response_model=Product)
+@router.post("/products", response_model=ProductResponse)
 async def create_product(product: ProductCreate, db: AsyncSession = Depends(get_db)):
     """
     Добавить новый товар
     """
     # Валидация выполнена в Pydantic схеме
-    db_product = Product(**product.model_dump())
+    db_product = ProductModel(**product.model_dump())
     db.add(db_product)
     await db.commit()
     await db.refresh(db_product)
@@ -66,7 +66,7 @@ async def delete_product(product_id: int, db: AsyncSession = Depends(get_db)):
     """
     Удалить товар по ID
     """
-    query = select(Product).where(Product.id == product_id)
+    query = select(ProductModel).where(ProductModel.id == product_id)
     result = await db.execute(query)
     product = result.scalar_one_or_none()
 

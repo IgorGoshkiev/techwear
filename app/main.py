@@ -1,6 +1,5 @@
 import logging
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request
@@ -8,9 +7,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import select, text
 
-from database import Base, async_session, engine
-from models import Product
-from routers import products
+from .database import Base, async_session, engine
+from .models import Product
+from .routers import products
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -104,7 +103,7 @@ app.add_middleware(
 )
 
 # Подключение роутеров
-app.include_router(products.router, prefix="/api/v1", tags=["Products"])
+app.include_router(products.router,  tags=["Products"])
 
 
 # Health check endpoint

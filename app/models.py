@@ -1,8 +1,8 @@
-from sqlalchemy import Column, String, Float, Text
+from sqlalchemy import String, Float, Text
 from sqlalchemy.orm import Mapped, mapped_column
 from typing import Optional
 
-from database import Base, str_null_true
+from .database import Base
 
 
 class Product(Base):

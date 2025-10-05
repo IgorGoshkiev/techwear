@@ -105,15 +105,7 @@
 * Получить все товары curl -X 'GET' 'http://localhost:8000/products'
 * Поиск товаров по категории  curl -X 'GET' 'http://localhost:8000/products?category=jackets'
 * Поиск по названию curl -X 'GET' 'http://localhost:8000/products?name=waterproof'
-* Добавить новый товар curl -X 'POST' 'http://localhost:8000/products' \ 
--H 'Content-Type: application/json' \
--d '{
-  "name": "Tech Pants",
-  "description": "Функциональные штаны с карго",
-  "price": 199.99,
-  "category": "pants",
-  "sizes": "M,L,XL"
-}'
+* Добавить новый товар curl -X 'POST' 'http://localhost:8000/products' -H 'Content-Type: application/json' -d '{"name": "Tech Pants", "description": "Функциональные штаны с карго", "price": 199.99, "category": "pants", "sizes": "M,L,XL"}'
 
 
 ### Переменные окружения
@@ -129,7 +121,7 @@
     
     Пользователь: techwear_user
     
-    Пароль: pass
+    Пароль: techwear_password
 
 
 

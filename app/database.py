@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, declared_attr, mapped_column
 
-from config_db import settings
+from .config_db import settings
 
 DATABASE_URL = settings.get_db_url()
 
